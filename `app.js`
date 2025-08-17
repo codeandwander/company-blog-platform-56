@@ -1,0 +1,96 @@
+```javascript
+// Import necessary dependencies
+const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
+const mongoose = require('mongoose');
+
+// Create Express app
+const app = express();
+
+// Connect to MongoDB
+mongoose.connect('mongodb://localhost/company-blog', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+// Define User schema and model
+const UserSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+});
+const User = mongoose.model('User', UserSchema);
+
+// Configure session middleware
+app.use(
+  session({
+    secret: 'your-secret-key',
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+// Parse request body
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files (e.g., CSS, images)
+app.use(express.static('public'));
+
+// Define routes
+app.get('/', (req, res) => {
+  res.render('index', { user: req.session.user });
+});
+
+app.get('/login', (req, res) => {
+  res.render('login');
+});
+
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).render('login', { error: 'Invalid username or password' });
+  }
+  req.session.user = { id: user._id, username: user.username };
+  res.redirect('/');
+});
+
+app.get('/signup', (req, res) => {
+  res.render('signup');
+});
+
+app.post('/signup', async (req, res) => {
+  const { username, password } = req.body;
+  const existingUser = await User.findOne({ username });
+  if (existingUser) {
+    return res.status(409).render('signup', { error: 'Username already exists' });
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const newUser = new User({ username, password: hashedPassword });
+  await newUser.save();
+  req.session.user = { id: newUser._id, username: newUser.username };
+  res.redirect('/');
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/');
+});
+
+// Start the server
+app.listen(3000, () => {
+  console.log('Server started on port 3000');
+});
+```
+
+This code sets up a basic Express.js server with a MongoDB database connection. It defines a User model and implements the following routes:
+
+1. `/`: Renders the homepage with the current user's information (if logged in).
+2. `/login`: Renders the login page.
+3. `/login` (POST): Handles the login process, authenticating the user and setting the session.
+4. `/signup`: Renders the signup page.
+5. `/signup` (POST): Handles the signup process, creating a new user and setting the session.
+6. `/logout`: Destroys the user's session and redirects to the homepage.
+
+The code uses the `bcrypt` library for password hashing and the `express-session` middleware for session management. You can further customize this code to integrate it with the blog platform and add more functionality as needed.
